@@ -34,6 +34,8 @@
   (tagged-list? 'equal exp))
 
 (define main-list (list))
+(define var-list (list))
+(define func-list (list))
 
 
 (define (gen-symbol exp) 0)
@@ -78,28 +80,89 @@
     (display line)
     (newline)))
 
-
-(define (gen exp)
-  (display exp))
-
 (define (func? exp)
   (pair? (cadr exp)))
 (define (func-parm-length exp)
   (- (length exp) 1))
-;所有define的结束点
+;所有define的结束点********************************************
 (define (get-ret exp)
   (cond
+    ((lambda? exp) (string-append "return []("
+                                  (gen-lambda-parm (cadr exp))
+                                  "{"
+                                  (get-ret (caddr exp))
+                                  "};"
+                                  ))
+    ((boolean? exp) (if exp "return true;" "return false;"))
+    ((char? exp) (string-append "return " (~a exp) ";"))
     ((symbol? exp) (string-append "return " (~a exp) ";"))
     ((number? exp) (string-append "return " (~a exp) ";"))
     ((string? exp) (string-append "return " (~a exp) ";"))
-    ((boolean? exp) (if exp "return true;" "return false;"))
+    ((prim? exp)
+     (string-append
+      "return "
+      (if (or (symbol? (list-ref exp 1)) (number? (list-ref exp 1)))
+          (~a (list-ref exp 1))
+          (deduce (list-ref exp 1)))
+      (~a (list-ref exp 0))
+      (if (or (symbol? (list-ref exp 2)) (number? (list-ref exp 2)))
+          (~a (list-ref exp 2))
+          (deduce (list-ref exp 2)))
+      ";"))
+    ((void? exp) "return;")
     ((pair? exp) (deduce exp))
-    ((void? exp) "return;")))
+    (else
+     (error "ret ERROR"))
+    ))
+
+(define (gen-lambda-parm exp)
+  (let ((ret ""))
+    (if (= (length exp) 1)
+        (string-replace ret ret (string-append ret "auto " (symbol->string (car exp)) ")"))
+        (string-replace ret ret (string-append ret
+                                               "auto "
+                                               (symbol->string (car exp))
+                                               ", "
+                                               (gen-lambda-parm (cdr exp)))))))
 ;生成表达式
 (define (deduce exp)
   (cond
-    (lambda? (list "todo"))
+    ((if? exp)
+     (string-append
+      (cond
+        ((or (<? (cadr exp)) (>? (cadr exp)))
+         (string-append "if("
+                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                (list-ref (cadr exp) 1)
+                                (deduce (list-ref (cadr exp) 1))))
+                        (~a (list-ref (cadr exp) 0))
+                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                (list-ref (cadr exp) 2)
+                                (deduce (list-ref (cadr exp) 2))))
+                        ")"))
+        ((=? (cadr exp))
+         (string-append "if("
+                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                (list-ref (cadr exp) 1)
+                                (deduce (list-ref (cadr exp) 1))))
+                        "=="
+                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                (list-ref (cadr exp) 2)
+                                (deduce (list-ref (cadr exp) 2))))
+                        ")"))
+        (else
+         (string-append "if(" (~a (deduce (cadr exp))) ")" )))
+      "\n{\n"
+      (get-ret (list-ref exp 2)) "\n}\n"
+      "else\n{\n"
+      (get-ret (list-ref exp 3)) "\n}\n"))
     
+    
+    ((boolean? exp) (if exp "true" "false"))
+    ((char? exp) (~a exp))
+    ((symbol? exp) (~a exp))
+    ((number? exp) (~a exp))
+    ((string? exp) (~a exp))
     ))
 
 (define (gen-template-line x y);default x 0 生成template<...>
@@ -107,11 +170,11 @@
       (void)
       (cond
         ((= y 0)
-         (begin (gen "template<") (gen-template-line x 1)))
+         (begin (display "template<") (gen-template-line x 1)))
         ((= x y)
-         (begin (gen "typename T") (printf "~a" y) (gen ">")) (newline))
+         (begin (display "typename T") (printf "~a" y) (display ">")) (newline))
         (else
-         (begin (gen "typename T") (printf "~a" y) (gen ", ") (gen-template-line x (+ y 1)))))))
+         (begin (display "typename T") (printf "~a" y) (display ", ") (gen-template-line x (+ y 1)))))))
 (define (gen-parm-val exp y);default x 1生成 T1 x;T2 y;（原函数的参数）
   (cond
     ((= (func-parm-length exp) 0)
@@ -141,68 +204,13 @@
   (begin
     (emit4 "auto operator()()")
     (emit4 "{")
-    (cond
-      ((boolean? exp)
-       (if (eq? exp #f)
-           (begin (tap) (emit4 "return 0;"))
-           (begin (tap) (emit4 "return 1;"))))
-      ((number? exp)
-       (begin (tap) (tap) (printf "return ~a;" exp) (newline)))
-      ((prim? exp)
-       (begin (tap) (tap) (printf "return ~a ~a ~a;"
-                                  (if (or (symbol? (list-ref exp 1)) (number? (list-ref exp 1)))
-                                      (list-ref exp 1)
-                                      (deduce (list-ref exp 1)))
-                                  (list-ref exp 0)
-                                  (if (or (symbol? (list-ref exp 2)) (number? (list-ref exp 2)))
-                                      (list-ref exp 2)
-                                      (deduce (list-ref exp 2))))(newline)))
-      ((if? exp)
-       (begin
-         (cond
-           ((<? (cadr exp))
-            (begin (tap) (tap) (printf "if(~a ~a ~a)"
-                                       (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                           (list-ref (cadr exp) 1)
-                                           (deduce (list-ref (cadr exp) 1)))
-                                       (list-ref (cadr exp) 0)
-                                       (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                           (list-ref (cadr exp) 2)
-                                           (deduce (list-ref (cadr exp) 2))))))
-           ((>? (cadr exp))
-            (begin (tap) (tap) (printf "if(~a ~a ~a)"
-                                       (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                           (list-ref (cadr exp) 1)
-                                           (deduce (list-ref (cadr exp) 1)))
-                                       (list-ref (cadr exp) 0)
-                                       (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                           (list-ref (cadr exp) 2)
-                                           (deduce (list-ref (cadr exp) 2))))))
-           ((=? (cadr exp))
-            (begin (tap) (tap) (printf "if(~a ~a ~a)"
-                                       (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                           (list-ref (cadr exp) 1)
-                                           (deduce (list-ref (cadr exp) 1)))
-                                       "=="
-                                       (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                           (list-ref (cadr exp) 2)
-                                           (deduce (list-ref (cadr exp) 2))))))
-           (else
-            (begin (tap) (tap) (printf "if(~a)" (deduce (cadr exp))) (newline))))
-         
-         (tap) (emit4 "{") (newline)
-         (tap) (tap) (tap) (printf "return ~a;" (get-ret (list-ref exp 2))) (newline)
-         (tap) (emit4 "}")
-         (tap) (tap) (emit "else")
-         (tap) (emit4 "{") (newline)
-         (tap) (tap) (tap) (printf "return ~a;" (get-ret (list-ref exp 3))) (newline)
-         (tap) (emit4 "}"))))
+    (emit (get-ret exp))
     (emit4 "}")))
 ; define->class
 (define (gen-func exp)
   (begin
     (gen-template-line (func-parm-length (car exp)) 0)
-    (gen "class ")
+    (display "class ")
     (printf "~a" (car (car exp)))(newline)
     (emit "{")
     (emit "public:")
