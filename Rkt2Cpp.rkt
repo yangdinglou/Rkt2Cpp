@@ -37,8 +37,6 @@
 (define var-list (list))
 (define func-list (list))
 
-
-(define (gen-symbol exp) 0)
 ;构造函数参数
 (define (gen-parm exp)
   (let ((ret ""))
@@ -217,7 +215,18 @@
     (gen-parm-val (car exp) 1)
     (gen-constructor (car exp))
     (gen-func-content (cadr exp))
-    (emit "}")))
+    (emit "};")))
+
+(define (gen-symbol exp)
+  (begin
+    (display "class ")
+    (printf "~a" (car exp))(newline)
+    (emit "{")
+    (emit "public:")
+    
+    (gen-func-content (cadr exp))
+    (printf "}~a;" (car exp))
+    (newline)))
 ;  只支持两类：define和执行define过的过程
 (define (trans-core exp)
   (cond
