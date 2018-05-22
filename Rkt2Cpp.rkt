@@ -8,7 +8,7 @@
 (define (void? exp)
   (eq? 'void (car exp)))
 (define (lambda? exp)
-  (tagged-list? 'lambda exp))
+  (or (tagged-list? 'lambda exp) (tagged-list? 'λ exp)))
 (define (prim? exp)
   (or (tagged-list? '+ exp)
       (tagged-list? '- exp)
@@ -41,13 +41,9 @@
 (define (gen-parm exp)
   (let ((ret ""))
     (if (= (length exp) 1)
-        (string-replace ret ret (string-append ret (if (symbol? (car exp))
-                                                       (symbol->string (car exp))
-                                                       (number->string (car exp))) ")"))
+        (string-replace ret ret (string-append ret (deduce (car exp)) ")"))
         (string-replace ret ret (string-append ret
-                                               (if (symbol? (car exp))
-                                                   (symbol->string (car exp))
-                                                   (number->string (car exp)))
+                                               (deduce (car exp))
                                                ", "
                                                (gen-parm (cdr exp)))))))
 ;F tmp;[]{tmp();}();
@@ -85,7 +81,7 @@
 ;所有define的结束点********************************************
 (define (get-ret exp)
   (cond
-    ((lambda? exp) (string-append "return []("
+    ((lambda? exp) (string-append "return [=]("
                                   (gen-lambda-parm (cadr exp))
                                   "{"
                                   (get-ret (caddr exp))
@@ -107,24 +103,6 @@
           (~a (list-ref exp 2))
           (deduce (list-ref exp 2)))
       ";"))
-    ((void? exp) "return;")
-    ((pair? exp) (deduce exp))
-    (else
-     (error "ret ERROR"))
-    ))
-
-(define (gen-lambda-parm exp)
-  (let ((ret ""))
-    (if (= (length exp) 1)
-        (string-replace ret ret (string-append ret "auto " (symbol->string (car exp)) ")"))
-        (string-replace ret ret (string-append ret
-                                               "auto "
-                                               (symbol->string (car exp))
-                                               ", "
-                                               (gen-lambda-parm (cdr exp)))))))
-;生成表达式
-(define (deduce exp)
-  (cond
     ((if? exp)
      (string-append
       (cond
@@ -154,8 +132,75 @@
       (get-ret (list-ref exp 2)) "\n}\n"
       "else\n{\n"
       (get-ret (list-ref exp 3)) "\n}\n"))
-    
-    
+    ((void? exp) "return;")
+    ((pair? exp)
+     (string-append
+      "return "
+      (deduce exp)
+      ";"))
+    (else
+     (error "ret ERROR"))
+    ))
+
+(define (gen-lambda-parm exp)
+  (let ((ret ""))
+    (if (= (length exp) 1)
+        (string-replace ret ret (string-append ret "auto " (symbol->string (car exp)) ")"))
+        (string-replace ret ret (string-append ret
+                                               "auto "
+                                               (symbol->string (car exp))
+                                               ", "
+                                               (gen-lambda-parm (cdr exp)))))))
+;生成表达式
+(define (deduce exp)
+  (cond
+    ((if? exp)
+     (string-append
+      (cond
+        ((or (<? (cadr exp)) (>? (cadr exp)))
+         (string-append "("
+                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                (list-ref (cadr exp) 1)
+                                (deduce (list-ref (cadr exp) 1))))
+                        (~a (list-ref (cadr exp) 0))
+                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                (list-ref (cadr exp) 2)
+                                (deduce (list-ref (cadr exp) 2))))
+                        ")?"))
+        ((=? (cadr exp))
+         (string-append "("
+                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                (list-ref (cadr exp) 1)
+                                (deduce (list-ref (cadr exp) 1))))
+                        "=="
+                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                (list-ref (cadr exp) 2)
+                                (deduce (list-ref (cadr exp) 2))))
+                        ")?"))
+        (else
+         (string-append "(" (~a (deduce (cadr exp))) ")?" )))
+      "\n{\n("
+      (get-ret (list-ref exp 2)) ")\n}\n:("
+      (get-ret (list-ref exp 3)) ")\n}\n"))
+    ((lambda? exp) (string-append "[=]("
+                                  (gen-lambda-parm (cadr exp))
+                                  "{"
+                                  (get-ret (caddr exp))
+                                  "}"
+                                  ))
+    ((prim? exp)
+     (string-append
+      (if (or (symbol? (list-ref exp 1)) (number? (list-ref exp 1)))
+          (~a (list-ref exp 1))
+          (deduce (list-ref exp 1)))
+      (~a (list-ref exp 0))
+      (if (or (symbol? (list-ref exp 2)) (number? (list-ref exp 2)))
+          (~a (list-ref exp 2))
+          (deduce (list-ref exp 2)))))
+    ((pair? exp)
+     (string-append (deduce (car exp))
+                     "("
+                     (gen-parm (cdr exp))))
     ((boolean? exp) (if exp "true" "false"))
     ((char? exp) (~a exp))
     ((symbol? exp) (~a exp))
@@ -242,4 +287,5 @@
     (if (eq? prog eof)
         null;todo:display main-list
         (begin (trans-core prog) (rkt2cpp)))))
+
 (rkt2cpp)
