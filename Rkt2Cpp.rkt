@@ -13,7 +13,7 @@
   (or (tagged-list? '+ exp)
       (tagged-list? '- exp)
       (tagged-list? '* exp)
-      (tagged-list? '= exp)))
+      (tagged-list? '/ exp)))
 (define (define? exp)
   (tagged-list? 'define exp))
 (define (begin? exp)
@@ -57,9 +57,7 @@
                        "}();")))
 ;f/(f a b)
 (define (gen-exec exp)
-  (if (pair? exp)
-      (constructor-run exp)
-      (list (string-append (symbol->string exp) "();"))))
+      (deduce exp))
     
 ;todo
 
@@ -95,13 +93,12 @@
     ((prim? exp)
      (string-append
       "return "
-      (if (or (symbol? (list-ref exp 1)) (number? (list-ref exp 1)))
-          (~a (list-ref exp 1))
-          (deduce (list-ref exp 1)))
-      (~a (list-ref exp 0))
-      (if (or (symbol? (list-ref exp 2)) (number? (list-ref exp 2)))
-          (~a (list-ref exp 2))
-          (deduce (list-ref exp 2)))
+      (cond
+        ((tagged-list? '+ exp) "sum(")
+        ((tagged-list? '- exp) "sub(")
+        ((tagged-list? '* exp) "mul(")
+        ((tagged-list? '/ exp) "div("))
+      (gen-parm (cdr exp))
       ";"))
     ((if? exp)
      (string-append
@@ -190,20 +187,22 @@
                                   ))
     ((prim? exp)
      (string-append
-      (if (or (symbol? (list-ref exp 1)) (number? (list-ref exp 1)))
-          (~a (list-ref exp 1))
-          (deduce (list-ref exp 1)))
-      (~a (list-ref exp 0))
-      (if (or (symbol? (list-ref exp 2)) (number? (list-ref exp 2)))
-          (~a (list-ref exp 2))
-          (deduce (list-ref exp 2)))))
+      (cond
+        ((tagged-list? '+ exp) "sum(")
+        ((tagged-list? '- exp) "sub(")
+        ((tagged-list? '* exp) "mul(")
+        ((tagged-list? '/ exp) "div("))
+      (gen-parm (cdr exp))))
     ((pair? exp)
      (string-append (deduce (car exp))
                      "("
                      (gen-parm (cdr exp))))
     ((boolean? exp) (if exp "true" "false"))
     ((char? exp) (~a exp))
-    ((symbol? exp) (~a exp))
+    ((symbol? exp)
+     (if (member exp var-list)
+         (string-append (~a exp) "()")
+         (~a exp)))
     ((number? exp) (~a exp))
     ((string? exp) (~a exp))
     ))
@@ -272,20 +271,29 @@
     (gen-func-content (cadr exp))
     (printf "}~a;" (car exp))
     (newline)))
+
+(define (put-main)
+  (begin
+    (emit "int main()")
+    (emit "{")
+    (for/list ([i main-list])
+      (printf "if (!is_void<decltype(~a)>::value) cout << ~a << '\\n';\n" i i))
+    (emit "return 0;")
+    (emit "}")))
 ;  只支持两类：define和执行define过的过程
 (define (trans-core exp)
   (cond
     ((define? exp)
      (if (func? exp)
-         (gen-func (cdr exp))
-         (gen-symbol (cdr exp))))
+         (begin (set! func-list (append func-list (list (car (cadr exp))))) (gen-func (cdr exp)))
+         (begin (set! var-list (append var-list (list (cadr exp))))(gen-symbol (cdr exp)))))
     (else
-     (set! main-list (append main-list (gen-exec exp))))))
+     (set! main-list (append main-list (list (gen-exec exp)))))))
 
 (define (rkt2cpp)
   (let ((prog (read)))
     (if (eq? prog eof)
-        null;todo:display main-list
+        (put-main);todo:display main-list
         (begin (trans-core prog) (rkt2cpp)))))
-
+(emit "#include \"rkt2cpp.h\"")
 (rkt2cpp)
