@@ -21,7 +21,7 @@
 (define (if? exp)
   (tagged-list? 'if exp))
 (define (set? exp)
-  (tagged-list? 'set exp))
+  (tagged-list? 'set! exp))
 (define (let? exp)
   (tagged-list? 'let exp))
 (define (<? exp)
@@ -33,9 +33,11 @@
 (define (eq-exp? exp)
   (tagged-list? 'equal exp))
 
+
 (define main-list (list))
 (define var-list (list))
 (define func-list (list))
+(define void-list (list 'void 'set!))
 
 ;构造函数参数
 (define (gen-parm exp)
@@ -61,7 +63,10 @@
     
 ;todo
 
-
+(define (void-func? exp)
+  (if (pair? exp)
+      (not (not (member (car exp) void-list)))
+      #f))
 (define (emit line)
   (display line)
   (newline))
@@ -71,7 +76,10 @@
     (tap)
     (display line)
     (newline)))
-
+(define (gen-begin-ret exp)
+  (if (= (length exp) 1)
+      (get-ret (car exp))
+      (string-append (deduce (car exp)) (gen-begin-ret (cdr exp)))))
 (define (func? exp)
   (pair? (cadr exp)))
 (define (func-parm-length exp)
@@ -129,6 +137,10 @@
       (get-ret (list-ref exp 2)) "\n}\n"
       "else\n{\n"
       (get-ret (list-ref exp 3)) "\n}\n"))
+    ((set? exp)
+     (string-append (~a (deduce (list-ref exp 1))) "=" (~a (deduce (list-ref exp 2))) ";\nreturn;"))
+    ((begin? exp)
+       (gen-begin-ret (cdr exp)))
     ((void? exp) "return;")
     ((pair? exp)
      (string-append
@@ -152,33 +164,62 @@
 (define (deduce exp)
   (cond
     ((if? exp)
-     (string-append
-      (cond
-        ((or (<? (cadr exp)) (>? (cadr exp)))
-         (string-append "("
-                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                (list-ref (cadr exp) 1)
-                                (deduce (list-ref (cadr exp) 1))))
-                        (~a (list-ref (cadr exp) 0))
-                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                (list-ref (cadr exp) 2)
-                                (deduce (list-ref (cadr exp) 2))))
-                        ")?"))
-        ((=? (cadr exp))
-         (string-append "("
-                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                (list-ref (cadr exp) 1)
-                                (deduce (list-ref (cadr exp) 1))))
-                        "=="
-                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                (list-ref (cadr exp) 2)
-                                (deduce (list-ref (cadr exp) 2))))
-                        ")?"))
-        (else
-         (string-append "(" (~a (deduce (cadr exp))) ")?" )))
-      "\n{\n("
-      (get-ret (list-ref exp 2)) ")\n}\n:("
-      (get-ret (list-ref exp 3)) ")\n}\n"))
+     (if (void-func? (list-ref exp 2))
+         (string-append
+          (cond
+            ((or (<? (cadr exp)) (>? (cadr exp)))
+             (string-append "if("
+                            (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                    (list-ref (cadr exp) 1)
+                                    (deduce (list-ref (cadr exp) 1))))
+                            (~a (list-ref (cadr exp) 0))
+                            (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                    (list-ref (cadr exp) 2)
+                                    (deduce (list-ref (cadr exp) 2))))
+                            ")"))
+            ((=? (cadr exp))
+             (string-append "if("
+                            (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                    (list-ref (cadr exp) 1)
+                                    (deduce (list-ref (cadr exp) 1))))
+                            "=="
+                            (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                    (list-ref (cadr exp) 2)
+                                    (deduce (list-ref (cadr exp) 2))))
+                            ")"))
+            (else
+             (string-append "if(" (~a (deduce (cadr exp))) ")" )))
+          "\n{"
+          (deduce (list-ref exp 2)) "\n}\n{"
+          (deduce (list-ref exp 3)) "\n}\n")
+         (string-append
+          (cond
+            ((or (<? (cadr exp)) (>? (cadr exp)))
+             (string-append "("
+                            (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                    (list-ref (cadr exp) 1)
+                                    (deduce (list-ref (cadr exp) 1))))
+                            (~a (list-ref (cadr exp) 0))
+                            (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                    (list-ref (cadr exp) 2)
+                                    (deduce (list-ref (cadr exp) 2))))
+                            ")?"))
+            ((=? (cadr exp))
+             (string-append "("
+                            (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
+                                    (list-ref (cadr exp) 1)
+                                    (deduce (list-ref (cadr exp) 1))))
+                            "=="
+                            (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
+                                    (list-ref (cadr exp) 2)
+                                    (deduce (list-ref (cadr exp) 2))))
+                            ")?"))
+            (else
+             (string-append "(" (~a (deduce (cadr exp))) ")?" )))
+          "\n("
+          (deduce (list-ref exp 2)) ")\n:("
+          (deduce (list-ref exp 3)) ")\n")
+         ))
     ((lambda? exp) (string-append "[=]("
                                   (gen-lambda-parm (cadr exp))
                                   "{"
@@ -193,10 +234,17 @@
         ((tagged-list? '* exp) "mul(")
         ((tagged-list? '/ exp) "div("))
       (gen-parm (cdr exp))))
+    ((set? exp)
+     (string-append (~a (deduce (list-ref exp 1))) "=" (~a (deduce (list-ref exp 2))) ";"))
     ((pair? exp)
-     (string-append (deduce (car exp))
+     (if (member (car exp) func-list)
+         (string-append (deduce (car exp))
                      "("
-                     (gen-parm (cdr exp))))
+                     (gen-parm (cdr exp))
+                     "()")
+         (string-append (deduce (car exp))
+                     "("
+                     (gen-parm (cdr exp)))))
     ((boolean? exp) (if exp "true" "false"))
     ((char? exp) (~a exp))
     ((symbol? exp)
@@ -217,7 +265,7 @@
          (begin (display "typename T") (printf "~a" y) (display ">")) (newline))
         (else
          (begin (display "typename T") (printf "~a" y) (display ", ") (gen-template-line x (+ y 1)))))))
-(define (gen-parm-val exp y);default x 1生成 T1 x;T2 y;（原函数的参数）
+(define (gen-parm-val exp y);default x 1生成 T1 x;T2 y;(原函数的参数)
   (cond
     ((= (func-parm-length exp) 0)
      (void))
