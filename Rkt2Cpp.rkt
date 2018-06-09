@@ -94,6 +94,9 @@
                                   "};"
                                   ))
     ((boolean? exp) (if exp "return true;" "return false;"))
+    ((list? exp) (string-append "return Rkt_Data({"
+                                (let (a "")
+                                  
     ((char? exp) (string-append "return " (~a exp) ";"))
     ((symbol? exp) (string-append "return " (~a exp) ";"))
     ((number? exp) (string-append "return " (~a exp) ";"))
