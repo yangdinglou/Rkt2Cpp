@@ -21,11 +21,6 @@
     ['(void)       #t]
     [else          #f]))
 
-; atomic-define? : term -> boolean
-(define (atomic-define? def)
-  (match def
-    [`(define ,v ,exp)  (atomic? exp)]
-    [else               #f]))
 
 ; tops-to-defs : top list -> def list
 (define (tops-to-defs tops)
@@ -161,11 +156,6 @@
 (define (pp x) (display (pretty-format x)))
 
 (pp (desugar-exp 
-     '(define (f x y)
-        (let ((a 0))
-          (if (and x y)
-              (set! a x)
-              (set! a y))
-          a))))
+     '(define f 1)))
           
       
