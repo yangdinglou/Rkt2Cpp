@@ -10,11 +10,26 @@
 #include <iostream>
 #include <type_traits>
 #include <algorithm>
+#include <initializer_list>
 #include <any>
+#include <cassert>
 using namespace std;
 
-class Rkt_Data {
+class Symbol
+{
 private:
+    string s;
+public:
+    Symbol(){};
+    Symbol(string ss):s(ss){};
+    operator string()
+    {
+        return s;
+    }
+};
+
+class Rkt_Data {
+public:
     enum type {
         LST,
         INT,
@@ -26,12 +41,44 @@ private:
     std::vector<Rkt_Data> container;
     std::any value;
     bool endflag;
-public:
+
     Rkt_Data() {
         t = LST;
         endflag=0;
     }
 
+    Rkt_Data(initializer_list<Rkt_Data> lst){
+        t=LST;
+        for(auto &i:lst)
+        {
+            container.push_back(Rkt_Data(i));
+        }
+    }
+    Rkt_Data(int i)
+    {
+        t=INT;
+        value=make_any<int>(i);
+    }
+    Rkt_Data(bool b)
+    {
+        t=BOOL;
+        value=make_any<bool>(b);
+    }
+    Rkt_Data(char c)
+    {
+        t=CHAR;
+        value=make_any<char>(c);
+    }
+    Rkt_Data(string s)
+    {
+        t=STRING;
+        value=make_any<string>(s);
+    }
+    Rkt_Data(Symbol s)
+    {
+        t=SYMBOL;
+        value=make_any<Symbol>(s);
+    }
     friend std::istream &operator>>(std::istream &is, Rkt_Data &data) {
         char flag=is.peek();
         while ((flag=='\n')||(flag==' '))
@@ -108,7 +155,7 @@ public:
                 tmp=is.peek();
             }
             data.t=SYMBOL;
-            data.value=make_any<string>(s);
+            data.value=make_any<Symbol>(Symbol(s));
         }
         flag=is.peek();
         while ((flag=='\n')||(flag==' '))
@@ -168,13 +215,72 @@ public:
             }
             case SYMBOL:
             {
-                os<<any_cast<string>(data.value)<<' ';
+                os<< static_cast<string>(any_cast<Symbol>(data.value))<<' ';
                 break;
             }
         }
         return os;
     }
+    Rkt_Data car()
+    {
+        try {
+            throw (this->t==LST);
+        }catch (bool flag){
+            if(!flag){
+                cerr<<"Not LST"<<'\n';
+                return Rkt_Data();
+            } else{
+                return container[0];
+            }
+        }
+    }
+    Rkt_Data cdr()
+    {
+        try {
+            throw (this->t==LST);
+        }catch (bool flag){
+            if(!flag){
+                cerr<<"Not LST"<<'\n';
+                return Rkt_Data();
+            }
+            else if(this->container.size()<2)
+            {
+                cerr<<"No cdr"<<'\n';
+            }
+            else{
+                Rkt_Data tmp;
+                tmp.container=vector<Rkt_Data>(this->container.begin()+1,this->container.end());
+                return tmp;
+            }
+        }
+    }
+    operator int()
+    {
+        assert(t==INT);
+        return any_cast<int>(value);
+    }
+    operator char()
+    {
+        assert(t==CHAR);
+        return any_cast<char>(value);
+    }
+    operator string()
+    {
+        assert(t==STRING);
+        return any_cast<string>(value);
+    }
+    operator Symbol()
+    {
+        assert(t==SYMBOL);
+        return any_cast<Symbol>(value);
+    }
+    operator bool()
+    {
+        assert(t==BOOL);
+        return any_cast<bool>(value);
+    }
 };
+
 
 template<typename ...Args>
 auto sum(Args&&... args) {
@@ -192,7 +298,19 @@ auto mul(Args&&... args) {
 }
 
 template<typename ...Args>
-auto div(Args&&... args) {
+auto divi(Args&&... args) {
     return (... / args );
 }
+
+
+bool even(int n)
+{
+    return n%2==0;
+}
+
+bool odd(int n)
+{
+    return n%2!=0;
+}
+
 #endif //RKT2CPP_H
