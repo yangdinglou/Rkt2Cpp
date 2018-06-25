@@ -1,5 +1,4 @@
 #lang racket
-
 ; define? : term -> boolean
 (define (define? sx)
   (match sx
@@ -21,28 +20,6 @@
     ['(void)       #t]
     [else          #f]))
 
-
-; tops-to-defs : top list -> def list
-(define (tops-to-defs tops)
-  
-  (define (top-to-def top)
-    (match top
-      [`(define (,f ,params ...) . ,body) 
-       `(define ,f (λ ,params . ,body))]
-    
-      [`(define ,v ,exp)
-       `(define ,v ,exp)]
-    
-      [exp
-       `(define ,(gensym '_) ,exp)]))
-  
-  (map top-to-def tops))
-
-
-      
-
-;; Desugaring.
-
 ; desugar-quote : sexp -> exp
 (define (desugar-quote s-exp)
   (cond
@@ -63,14 +40,9 @@
      (desugar-exp exp)]
     
     [`(,(and (? not-define?) exps) ...)
-     `(begin ,@(map desugar-exp exps))]
-    
-    [`(,tops ... ,exp)
-     (define defs (tops-to-defs tops))
-     (desugar-exp (match defs
-                    [`((define ,vs ,es) ...)
-                     `(letrec ,(map list vs es) ,exp)]))]))
+     `(begin ,@(map desugar-exp exps))]))
        
+
 
 ; desugar-exp : exp -> exp
 (define (desugar-exp exp)
@@ -137,10 +109,11 @@
      `(if ,(desugar-exp test) 
           ,(desugar-exp exp1) 
           ,(desugar-exp exp2))]
-    
+
     [`(set! ,v ,exp)
      `(set! ,v ,(desugar-exp exp))]
-    
+
+
     [`(begin . ,body)
      (desugar-body body)]
     
@@ -153,9 +126,4 @@
      (printf "desugar fail: ~s~n" exp)
      exp]))
 
-(define (pp x) (display (pretty-format x)))
-
-(pp (desugar-exp 
-     '(define f 1)))
-          
-      
+(provide desugar-exp)
