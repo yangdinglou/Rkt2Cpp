@@ -32,6 +32,9 @@
   (tagged-list? '= exp))
 (define (eq-exp? exp)
   (tagged-list? 'equal exp))
+;list只能是(list ...)形式
+(define (dflist? exp)
+  (tagged-list? 'list exp))
 
 
 (define main-list (list))
@@ -105,7 +108,15 @@
                                   (get-ret (caddr exp))
                                   "};"
                                   ))
-
+    ((tagged-list? 'car exp) (string-append "return car("
+                                            (deduce (cadr exp))
+                                            ");"))
+    ((tagged-list? 'car exp) (string-append "return cdr("
+                                            (deduce (cadr exp))
+                                            ");"))
+    ((dflist? exp) (string-append "return Rkt_Data({"
+                                  (gen-init-list (cdr exp))
+                                  ");"))
     ((boolean? exp) (if exp "return true;" "return false;"))                        
     ((char? exp) (string-append "return \'" (~a exp) "\';"))
     ((symbol? exp) (string-append "return " (if (member exp var-list)
@@ -250,7 +261,9 @@
         ((tagged-list? '* exp) "mul(")
         ((tagged-list? '/ exp) "divi("))
       (gen-parm (cdr exp))))
-    
+    ((dflist? exp) (string-append "Rkt_Data({"
+                                  (gen-init-list (cdr exp))
+                                  ")"))
     ((set? exp)
      (string-append (~a (deduce (list-ref exp 1))) "=" (~a (deduce (list-ref exp 2))) ";"))
     ((pair? exp)
