@@ -1,5 +1,5 @@
 #lang racket
-;(provide void? lambda? prim? define? begin? if? set? let? <? >? =? eq-exp?)
+(require "desugar2.rkt")
 ; tagged-list? : symbol value -> boolean
 (define (tagged-list? tag l)
   (and (pair? l)
@@ -38,6 +38,9 @@
 (define var-list (list))
 (define func-list (list))
 (define void-list (list 'void 'set!))
+;作用：将racket内置函数用C++实现后
+(define selfdefine (list 'even?
+                         'odd?))
 
 ;构造函数参数
 (define (gen-parm exp)
@@ -76,6 +79,15 @@
     (tap)
     (display line)
     (newline)))
+
+(define (gen-init-list exp)
+  (let ((ret ""))
+    (if (= (length exp) 1)
+        (string-replace ret ret (string-append ret (deduce (car exp)) "}"))
+        (string-replace ret ret (string-append ret
+                                               (deduce (car exp))
+                                               ", "
+                                               (gen-init-list (cdr exp)))))))
 (define (gen-begin-ret exp)
   (if (= (length exp) 1)
       (get-ret (car exp))
@@ -93,14 +105,14 @@
                                   (get-ret (caddr exp))
                                   "};"
                                   ))
-    ((boolean? exp) (if exp "return true;" "return false;"))
-    ((list? exp) (string-append "return Rkt_Data({"
-                                (let (a "")
-                                  
-    ((char? exp) (string-append "return " (~a exp) ";"))
-    ((symbol? exp) (string-append "return " (~a exp) ";"))
+
+    ((boolean? exp) (if exp "return true;" "return false;"))                        
+    ((char? exp) (string-append "return \'" (~a exp) "\';"))
+    ((symbol? exp) (string-append "return " (if (member exp var-list)
+                                                (string-append (~a exp) "()")
+                                                (~a exp)) ";"))
     ((number? exp) (string-append "return " (~a exp) ";"))
-    ((string? exp) (string-append "return " (~a exp) ";"))
+    ((string? exp) (string-append "return \"" (~a exp) "\";"))
     ((prim? exp)
      (string-append
       "return "
@@ -111,6 +123,7 @@
         ((tagged-list? '/ exp) "div("))
       (gen-parm (cdr exp))
       ";"))
+    
     ((if? exp)
      (string-append
       (cond
@@ -235,19 +248,26 @@
         ((tagged-list? '+ exp) "sum(")
         ((tagged-list? '- exp) "sub(")
         ((tagged-list? '* exp) "mul(")
-        ((tagged-list? '/ exp) "div("))
+        ((tagged-list? '/ exp) "divi("))
       (gen-parm (cdr exp))))
+    
     ((set? exp)
      (string-append (~a (deduce (list-ref exp 1))) "=" (~a (deduce (list-ref exp 2))) ";"))
     ((pair? exp)
-     (if (member (car exp) func-list)
-         (string-append (deduce (car exp))
-                     "("
-                     (gen-parm (cdr exp))
-                     "()")
-         (string-append (deduce (car exp))
-                     "("
-                     (gen-parm (cdr exp)))))
+     (if (member (car exp) selfdefine)
+         (string-append
+          (cond
+            ((tagged-list? 'even? exp) "even(")
+            ((tagged-list? 'odd? exp) "odd("))
+          (gen-parm (cdr exp)))
+         (if (member (car exp) func-list)
+             (string-append (deduce (car exp))
+                            "("
+                            (gen-parm (cdr exp))
+                            "()")
+             (string-append (deduce (car exp))
+                            "("
+                            (gen-parm (cdr exp))))))
     ((boolean? exp) (if exp "true" "false"))
     ((char? exp) (~a exp))
     ((symbol? exp)
@@ -341,10 +361,11 @@
     (else
      (set! main-list (append main-list (list (gen-exec exp)))))))
 
+
 (define (rkt2cpp)
   (let ((prog (read)))
     (if (eq? prog eof)
         (put-main);todo:display main-list
-        (begin (trans-core prog) (rkt2cpp)))))
+        (begin (trans-core (desugar-exp prog)) (rkt2cpp)))))
 (emit "#include \"rkt2cpp.h\"")
 (rkt2cpp)
