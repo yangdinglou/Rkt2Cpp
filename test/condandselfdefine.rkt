@@ -1,0 +1,15 @@
+(define (square x) (* x x))
+(define (exptiter b n a)
+    (cond ((= n 0)
+            a)
+          ((even? n)
+            (exptiter (square b)
+                       (/ n 2)
+                       a))
+          (else
+            (exptiter b
+                       (- n 1)
+                       (* b a)))))
+(define (fastexpt b n)
+    (exptiter b n 1))
+(fastexpt 5 3)

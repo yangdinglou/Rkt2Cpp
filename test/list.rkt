@@ -1,0 +1,6 @@
+(define (f x)
+  (car x))
+(define (g x)
+  (cdr x))
+(f (list 1 2))
+(g (list 3 4))
