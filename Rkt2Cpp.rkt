@@ -114,6 +114,21 @@
     ((tagged-list? 'car exp) (string-append "return cdr("
                                             (deduce (cadr exp))
                                             ");"))
+    ((>? exp) (string-append "return "
+                             (~a (list-ref exp 1))
+                             ">"
+                             (~a (list-ref exp 2))
+                             ";"))
+    ((<? exp) (string-append "return "
+                             (~a (list-ref exp 1))
+                             "<"
+                             (~a (list-ref exp 2))
+                             ";"))
+    ((=? exp) (string-append "return "
+                             (~a (list-ref exp 1))
+                             "=="
+                             (~a (list-ref exp 2))
+                             ";"))
     ((dflist? exp) (string-append "return Rkt_Data({"
                                   (gen-init-list (cdr exp))
                                   ");"))
@@ -137,29 +152,7 @@
     
     ((if? exp)
      (string-append
-      (cond
-        ((or (<? (cadr exp)) (>? (cadr exp)))
-         (string-append "if("
-                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                (list-ref (cadr exp) 1)
-                                (deduce (list-ref (cadr exp) 1))))
-                        (~a (list-ref (cadr exp) 0))
-                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                (list-ref (cadr exp) 2)
-                                (deduce (list-ref (cadr exp) 2))))
-                        ")"))
-        ((=? (cadr exp))
-         (string-append "if("
-                        (~a (if (or (symbol? (list-ref (cadr exp) 1)) (number? (list-ref (cadr exp) 1)))
-                                (list-ref (cadr exp) 1)
-                                (deduce (list-ref (cadr exp) 1))))
-                        "=="
-                        (~a (if (or (symbol? (list-ref (cadr exp) 2)) (number? (list-ref (cadr exp) 2)))
-                                (list-ref (cadr exp) 2)
-                                (deduce (list-ref (cadr exp) 2))))
-                        ")"))
-        (else
-         (string-append "if(" (~a (deduce (cadr exp))) ")" )))
+      (string-append "if(" (~a (deduce (cadr exp))) ")" )
       "\n{\n"
       (get-ret (list-ref exp 2)) "\n}\n"
       "else\n{\n"
@@ -264,6 +257,15 @@
     ((dflist? exp) (string-append "Rkt_Data({"
                                   (gen-init-list (cdr exp))
                                   ")"))
+    ((>? exp) (string-append (~a (list-ref exp 1))
+                             ">"
+                             (~a (list-ref exp 2))))
+    ((<? exp) (string-append (~a (list-ref exp 1))
+                             "<"
+                             (~a (list-ref exp 2))))
+    ((=? exp) (string-append (~a (list-ref exp 1))
+                             "="
+                             (~a (list-ref exp 2))))
     ((set? exp)
      (string-append (~a (deduce (list-ref exp 1))) "=" (~a (deduce (list-ref exp 2))) ";"))
     ((pair? exp)
