@@ -264,7 +264,7 @@
                              "<"
                              (~a (list-ref exp 2))))
     ((=? exp) (string-append (~a (list-ref exp 1))
-                             "="
+                             "=="
                              (~a (list-ref exp 2))))
     ((set? exp)
      (string-append (~a (deduce (list-ref exp 1))) "=" (~a (deduce (list-ref exp 2))) ";"))
